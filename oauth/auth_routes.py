@@ -9,6 +9,10 @@ Web routes that handle Google login for the GA MCP server.
 
 import os
 import logging
+
+# Allow Google to return a superset of requested scopes (e.g. if user previously
+# granted additional scopes like Analytics to this OAuth client)
+os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
 import requests as http_requests
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
