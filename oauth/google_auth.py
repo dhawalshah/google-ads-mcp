@@ -15,7 +15,7 @@ from .firestore_tokens import load_token
 logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/adwords"]
-API_VERSION = "v23"
+API_VERSION = "v21"
 
 # Set by auth middleware in main.py for every request
 current_user_email: contextvars.ContextVar[str] = contextvars.ContextVar(
