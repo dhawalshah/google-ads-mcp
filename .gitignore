@@ -1,0 +1,17 @@
+# Environment
+.env
+
+# OAuth credentials (never commit real credentials)
+client_secret.json
+*_token.json
+google_ads_token.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+lib/
+google-ads-mcp-server.dxt
+
+# macOS
+.DS_Store

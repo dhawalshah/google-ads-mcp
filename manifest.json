@@ -1,0 +1,90 @@
+{
+  "dxt_version": "0.1",
+  "name": "google-ads-mcp-server",
+  "display_name": "Google Ads MCP Server",
+  "version": "0.1.0",
+  "description": "A Python MCP server for Google Ads API integration with OAuth 2.0 authentication",
+  "long_description": "This extension provides comprehensive Google Ads management capabilities through a Python MCP server. It enables programmatic access to Google Ads data and management features, including account management, GAQL query execution, and keyword research through the Google Ads API with automatic OAuth 2.0 authentication and token refresh.",
+  "author": {
+    "name": "GoMarble AI",
+    "email": "support@gomarble.ai",
+    "url": "https://github.com/gomarble-ai"
+  },
+  "icon": "favicon.png",
+  "server": {
+    "type": "python",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "python",
+      "args": [
+        "${__dirname}/server.py"
+      ],
+      "env": {
+        "GOOGLE_ADS_DEVELOPER_TOKEN": "${user_config.google_ads_developer_token}",
+        "GOOGLE_ADS_OAUTH_CONFIG_PATH": "${user_config.oauth_config_path}",
+        "PYTHONPATH": "${__dirname}/lib"
+      },
+      "cwd": "${__dirname}"
+    }
+  },
+  "tools": [
+    {
+      "name": "list_accounts",
+      "description": "List all accessible Google Ads accounts including nested sub-accounts"
+    },
+    {
+      "name": "run_gaql",
+      "description": "Execute Google Ads Query Language (GAQL) queries with custom formatting"
+    },
+    {
+      "name": "run_keyword_planner",
+      "description": "Generate keyword ideas using Google Ads KeywordPlanIdeaService with search volume and metrics"
+    }
+  ],
+  "resources": [
+    {
+      "name": "gaql://reference",
+      "description": "Google Ads Query Language (GAQL) reference documentation and examples"
+    }
+  ],
+  "keywords": [
+    "google",
+    "ads",
+    "marketing",
+    "analytics",
+    "advertising",
+    "campaigns",
+    "gaql",
+    "keyword-research",
+    "oauth",
+    "ppc"
+  ],
+  "license": "MIT",
+  "user_config": {
+    "google_ads_developer_token": {
+      "type": "string",
+      "title": "Google Ads Developer Token",
+      "description": "Your Google Ads API Developer Token (obtain from Google Ads API Center)",
+      "required": true,
+      "sensitive": true
+    },
+    "oauth_config_path": {
+      "type": "string",
+      "title": "OAuth Configuration Path",
+      "description": "Full path to your Google Cloud OAuth 2.0 client credentials JSON file",
+      "required": true,
+      "sensitive": false
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "python": ">=3.10.0 <4"
+    }
+  }
+} 
