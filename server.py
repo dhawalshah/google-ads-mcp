@@ -334,6 +334,164 @@ def run_keyword_planner(
             ctx.error(f"An unexpected error occurred: {e}")
         raise
 
+VALID_DATE_RANGES = [
+    "TODAY", "YESTERDAY", "LAST_7_DAYS", "LAST_BUSINESS_WEEK",
+    "THIS_MONTH", "LAST_MONTH", "LAST_14_DAYS", "LAST_30_DAYS",
+    "THIS_QUARTER", "LAST_QUARTER", "THIS_YEAR", "LAST_YEAR"
+]
+
+@mcp.tool
+def get_campaign_performance(
+    customer_id: str,
+    date_range: str = "LAST_30_DAYS",
+    manager_id: str = "",
+    ctx: Context = None
+) -> Dict[str, Any]:
+    """Get performance metrics for all campaigns in an account.
+
+    Args:
+        customer_id: The Google Ads customer ID (10 digits, no dashes)
+        date_range: Date range for metrics. One of: TODAY, YESTERDAY, LAST_7_DAYS,
+            LAST_BUSINESS_WEEK, THIS_MONTH, LAST_MONTH, LAST_14_DAYS, LAST_30_DAYS,
+            THIS_QUARTER, LAST_QUARTER, THIS_YEAR, LAST_YEAR (default: LAST_30_DAYS)
+        manager_id: Manager ID if access type is 'managed'
+
+    Returns:
+        Campaign performance metrics including impressions, clicks, cost, CTR, CPC, conversions
+    """
+    if date_range.upper() not in VALID_DATE_RANGES:
+        raise ValueError(f"Invalid date_range '{date_range}'. Must be one of: {', '.join(VALID_DATE_RANGES)}")
+
+    query = f"""
+        SELECT
+            campaign.id,
+            campaign.name,
+            campaign.status,
+            campaign.advertising_channel_type,
+            metrics.impressions,
+            metrics.clicks,
+            metrics.cost_micros,
+            metrics.conversions,
+            metrics.conversions_value,
+            metrics.ctr,
+            metrics.average_cpc,
+            metrics.all_conversions
+        FROM campaign
+        WHERE segments.date DURING {date_range.upper()}
+            AND campaign.status != 'REMOVED'
+        ORDER BY metrics.cost_micros DESC
+    """
+
+    if ctx:
+        ctx.info(f"Fetching campaign performance for {customer_id} ({date_range})...")
+
+    result = execute_gaql(customer_id, query, manager_id)
+
+    formatted = []
+    for row in result.get("results", []):
+        campaign = row.get("campaign", {})
+        metrics = row.get("metrics", {})
+        formatted.append({
+            "campaign_id": campaign.get("id"),
+            "campaign_name": campaign.get("name"),
+            "status": campaign.get("status"),
+            "channel_type": campaign.get("advertisingChannelType"),
+            "impressions": metrics.get("impressions", 0),
+            "clicks": metrics.get("clicks", 0),
+            "cost_micros": metrics.get("costMicros", 0),
+            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions", 0)), 2),
+            "conversions_value": round(float(metrics.get("conversionsValue", 0)), 2),
+            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
+            "average_cpc_micros": metrics.get("averageCpc", 0),
+            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
+            "all_conversions": round(float(metrics.get("allConversions", 0)), 2),
+        })
+
+    return {
+        "campaigns": formatted,
+        "total_campaigns": len(formatted),
+        "date_range": date_range.upper(),
+        "customer_id": customer_id,
+    }
+
+
+@mcp.tool
+def get_ad_group_performance(
+    customer_id: str,
+    date_range: str = "LAST_30_DAYS",
+    campaign_id: str = "",
+    manager_id: str = "",
+    ctx: Context = None
+) -> Dict[str, Any]:
+    """Get performance metrics broken down by ad group.
+
+    Args:
+        customer_id: The Google Ads customer ID (10 digits, no dashes)
+        date_range: Date range for metrics (default: LAST_30_DAYS). See get_campaign_performance for valid values.
+        campaign_id: Optional — filter results to a specific campaign ID
+        manager_id: Manager ID if access type is 'managed'
+
+    Returns:
+        Ad group performance metrics including impressions, clicks, cost, CTR, CPC, conversions
+    """
+    if date_range.upper() not in VALID_DATE_RANGES:
+        raise ValueError(f"Invalid date_range '{date_range}'. Must be one of: {', '.join(VALID_DATE_RANGES)}")
+
+    campaign_filter = f"AND campaign.id = {campaign_id}" if campaign_id else ""
+
+    query = f"""
+        SELECT
+            campaign.id,
+            campaign.name,
+            ad_group.id,
+            ad_group.name,
+            ad_group.status,
+            metrics.impressions,
+            metrics.clicks,
+            metrics.cost_micros,
+            metrics.conversions,
+            metrics.ctr,
+            metrics.average_cpc
+        FROM ad_group
+        WHERE segments.date DURING {date_range.upper()}
+            AND ad_group.status != 'REMOVED'
+            {campaign_filter}
+        ORDER BY metrics.cost_micros DESC
+    """
+
+    if ctx:
+        ctx.info(f"Fetching ad group performance for {customer_id} ({date_range})...")
+
+    result = execute_gaql(customer_id, query, manager_id)
+
+    formatted = []
+    for row in result.get("results", []):
+        campaign = row.get("campaign", {})
+        ad_group = row.get("adGroup", {})
+        metrics = row.get("metrics", {})
+        formatted.append({
+            "campaign_id": campaign.get("id"),
+            "campaign_name": campaign.get("name"),
+            "ad_group_id": ad_group.get("id"),
+            "ad_group_name": ad_group.get("name"),
+            "status": ad_group.get("status"),
+            "impressions": metrics.get("impressions", 0),
+            "clicks": metrics.get("clicks", 0),
+            "cost_micros": metrics.get("costMicros", 0),
+            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions", 0)), 2),
+            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
+            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
+        })
+
+    return {
+        "ad_groups": formatted,
+        "total_ad_groups": len(formatted),
+        "date_range": date_range.upper(),
+        "customer_id": customer_id,
+    }
+
 @mcp.resource("gaql://reference")
 def gaql_reference() -> str:
     """Google Ads Query Language (GAQL) reference documentation."""
