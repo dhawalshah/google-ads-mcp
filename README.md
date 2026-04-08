@@ -27,7 +27,7 @@ A Model Context Protocol (MCP) server for Google Ads. Connect Claude (or any MCP
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.10+
 - A Google Ads account with at least one accessible customer
 - A [Google Cloud](https://console.cloud.google.com/) project
 
@@ -223,7 +223,7 @@ https://YOUR-SERVICE-URL.run.app/auth/login
 | --- | --- | --- |
 | `GOOGLE_ADS_DEVELOPER_TOKEN` | Yes | Developer token from Google Ads API Center |
 | `OAUTH_CONFIG_PATH` | Yes | Path to `client_secret.json` |
-| `GCP_PROJECT_ID` | Yes | GCP project ID for Firestore token storage |
+| `GCP_PROJECT_ID` | Yes (team mode) | GCP project ID for Firestore token storage |
 | `ALLOWED_DOMAIN` | Yes | Only `@ALLOWED_DOMAIN` emails can authenticate (e.g. `yourcompany.com`) |
 | `BASE_URL` | Yes | Public URL of this service (e.g. `https://your-service.run.app`) |
 | `SESSION_SECRET_KEY` | Yes | Secret for signing session cookies — use a long random string |

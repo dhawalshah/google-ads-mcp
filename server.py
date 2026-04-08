@@ -399,13 +399,13 @@ def get_campaign_performance(
             "impressions": metrics.get("impressions", 0),
             "clicks": metrics.get("clicks", 0),
             "cost_micros": metrics.get("costMicros", 0),
-            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
-            "conversions": round(float(metrics.get("conversions", 0)), 2),
-            "conversions_value": round(float(metrics.get("conversionsValue", 0)), 2),
-            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
+            "cost": round(int(metrics.get("costMicros") or 0) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions") or 0), 2),
+            "conversions_value": round(float(metrics.get("conversionsValue") or 0), 2),
+            "ctr": round(float(metrics.get("ctr") or 0) * 100, 2),
             "average_cpc_micros": metrics.get("averageCpc", 0),
-            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
-            "all_conversions": round(float(metrics.get("allConversions", 0)), 2),
+            "average_cpc": round(int(metrics.get("averageCpc") or 0) / 1_000_000, 2),
+            "all_conversions": round(float(metrics.get("allConversions") or 0), 2),
         })
 
     return {
@@ -479,10 +479,10 @@ def get_ad_group_performance(
             "impressions": metrics.get("impressions", 0),
             "clicks": metrics.get("clicks", 0),
             "cost_micros": metrics.get("costMicros", 0),
-            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
-            "conversions": round(float(metrics.get("conversions", 0)), 2),
-            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
-            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
+            "cost": round(int(metrics.get("costMicros") or 0) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions") or 0), 2),
+            "ctr": round(float(metrics.get("ctr") or 0) * 100, 2),
+            "average_cpc": round(int(metrics.get("averageCpc") or 0) / 1_000_000, 2),
         })
 
     return {
@@ -565,10 +565,10 @@ def get_ad_performance(
             "status": ad_group_ad.get("status"),
             "impressions": metrics.get("impressions", 0),
             "clicks": metrics.get("clicks", 0),
-            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
-            "conversions": round(float(metrics.get("conversions", 0)), 2),
-            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
-            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
+            "cost": round(int(metrics.get("costMicros") or 0) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions") or 0), 2),
+            "ctr": round(float(metrics.get("ctr") or 0) * 100, 2),
+            "average_cpc": round(int(metrics.get("averageCpc") or 0) / 1_000_000, 2),
         })
 
     return {
@@ -584,6 +584,7 @@ def get_keyword_performance(
     customer_id: str,
     date_range: str = "LAST_30_DAYS",
     campaign_id: str = "",
+    limit: int = 500,
     manager_id: str = "",
     ctx: Context = None
 ) -> Dict[str, Any]:
@@ -593,6 +594,7 @@ def get_keyword_performance(
         customer_id: The Google Ads customer ID (10 digits, no dashes)
         date_range: Date range for metrics (default: LAST_30_DAYS)
         campaign_id: Optional — filter results to a specific campaign ID
+        limit: Max number of keywords to return (default: 500, max: 1000)
         manager_id: Manager ID if access type is 'managed'
 
     Returns:
@@ -628,6 +630,7 @@ def get_keyword_performance(
             AND ad_group_criterion.status != 'REMOVED'
             {campaign_filter}
         ORDER BY metrics.impressions DESC
+        LIMIT {min(max(1, limit), 1000)}
     """
 
     if ctx:
@@ -657,10 +660,10 @@ def get_keyword_performance(
             "landing_page_experience": quality.get("landingPageExperience"),
             "impressions": metrics.get("impressions", 0),
             "clicks": metrics.get("clicks", 0),
-            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
-            "conversions": round(float(metrics.get("conversions", 0)), 2),
-            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
-            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
+            "cost": round(int(metrics.get("costMicros") or 0) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions") or 0), 2),
+            "ctr": round(float(metrics.get("ctr") or 0) * 100, 2),
+            "average_cpc": round(int(metrics.get("averageCpc") or 0) / 1_000_000, 2),
             "search_impression_share": metrics.get("searchImpressionShare"),
         })
 
@@ -742,10 +745,10 @@ def get_search_terms_report(
             "status": stv.get("status"),
             "impressions": metrics.get("impressions", 0),
             "clicks": metrics.get("clicks", 0),
-            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
-            "conversions": round(float(metrics.get("conversions", 0)), 2),
-            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
-            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
+            "cost": round(int(metrics.get("costMicros") or 0) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions") or 0), 2),
+            "ctr": round(float(metrics.get("ctr") or 0) * 100, 2),
+            "average_cpc": round(int(metrics.get("averageCpc") or 0) / 1_000_000, 2),
         })
 
     return {
@@ -813,7 +816,7 @@ def get_budget_report(
             "budget_period": budget.get("period"),
             "budget_type": budget.get("type"),
             "total_budget": round(total_micros / 1_000_000, 2) if total_micros else None,
-            "month_to_date_cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
+            "month_to_date_cost": round(int(metrics.get("costMicros") or 0) / 1_000_000, 2),
         })
 
     return {
@@ -877,9 +880,9 @@ def get_geographic_performance(
             "campaign_name": campaign.get("name"),
             "impressions": metrics.get("impressions", 0),
             "clicks": metrics.get("clicks", 0),
-            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
-            "conversions": round(float(metrics.get("conversions", 0)), 2),
-            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
+            "cost": round(int(metrics.get("costMicros") or 0) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions") or 0), 2),
+            "ctr": round(float(metrics.get("ctr") or 0) * 100, 2),
         })
 
     return {
@@ -943,10 +946,10 @@ def get_device_performance(
             "device": segments.get("device"),
             "impressions": metrics.get("impressions", 0),
             "clicks": metrics.get("clicks", 0),
-            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
-            "conversions": round(float(metrics.get("conversions", 0)), 2),
-            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
-            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
+            "cost": round(int(metrics.get("costMicros") or 0) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions") or 0), 2),
+            "ctr": round(float(metrics.get("ctr") or 0) * 100, 2),
+            "average_cpc": round(int(metrics.get("averageCpc") or 0) / 1_000_000, 2),
         })
 
     return {
@@ -1026,7 +1029,7 @@ def get_asset_performance(
     """Get performance of responsive search ad assets (headlines and descriptions).
 
     Shows which headlines and descriptions are performing best, including Google's
-    performance label (BEST, GOOD, LOW, LEARNING, PENDING).
+    performance label (BEST, GOOD, LOW, LEARNING, UNRATED).
 
     Args:
         customer_id: The Google Ads customer ID (10 digits, no dashes)
@@ -1168,7 +1171,7 @@ def gaql_reference() -> str:
                 campaign.id,
                 ad_group_criterion.keyword.text, 
                 ad_group_criterion.keyword.match_type,
-                metrics.average_position, 
+                metrics.search_top_impression_share,
                 metrics.ctr
                 FROM keyword_view 
                 WHERE segments.date DURING LAST_30_DAYS
