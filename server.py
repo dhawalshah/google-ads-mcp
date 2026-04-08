@@ -822,6 +822,277 @@ def get_budget_report(
         "customer_id": customer_id,
     }
 
+
+@mcp.tool
+def get_geographic_performance(
+    customer_id: str,
+    date_range: str = "LAST_30_DAYS",
+    manager_id: str = "",
+    ctx: Context = None
+) -> Dict[str, Any]:
+    """Get performance metrics broken down by geographic location.
+
+    Args:
+        customer_id: The Google Ads customer ID (10 digits, no dashes)
+        date_range: Date range for metrics (default: LAST_30_DAYS)
+        manager_id: Manager ID if access type is 'managed'
+
+    Returns:
+        Geographic performance data including country, location type, impressions, clicks, cost
+    """
+    if date_range.upper() not in VALID_DATE_RANGES:
+        raise ValueError(f"Invalid date_range '{date_range}'. Must be one of: {', '.join(VALID_DATE_RANGES)}")
+
+    query = f"""
+        SELECT
+            geographic_view.country_criterion_id,
+            geographic_view.location_type,
+            campaign.id,
+            campaign.name,
+            metrics.impressions,
+            metrics.clicks,
+            metrics.cost_micros,
+            metrics.conversions,
+            metrics.ctr
+        FROM geographic_view
+        WHERE segments.date DURING {date_range.upper()}
+        ORDER BY metrics.cost_micros DESC
+        LIMIT 100
+    """
+
+    if ctx:
+        ctx.info(f"Fetching geographic performance for {customer_id} ({date_range})...")
+
+    result = execute_gaql(customer_id, query, manager_id)
+
+    formatted = []
+    for row in result.get("results", []):
+        geo = row.get("geographicView", {})
+        campaign = row.get("campaign", {})
+        metrics = row.get("metrics", {})
+        formatted.append({
+            "country_criterion_id": geo.get("countryCriterionId"),
+            "location_type": geo.get("locationType"),
+            "campaign_id": campaign.get("id"),
+            "campaign_name": campaign.get("name"),
+            "impressions": metrics.get("impressions", 0),
+            "clicks": metrics.get("clicks", 0),
+            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions", 0)), 2),
+            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
+        })
+
+    return {
+        "locations": formatted,
+        "total_locations": len(formatted),
+        "date_range": date_range.upper(),
+        "customer_id": customer_id,
+    }
+
+
+@mcp.tool
+def get_device_performance(
+    customer_id: str,
+    date_range: str = "LAST_30_DAYS",
+    manager_id: str = "",
+    ctx: Context = None
+) -> Dict[str, Any]:
+    """Get performance metrics broken down by device type (mobile, desktop, tablet).
+
+    Args:
+        customer_id: The Google Ads customer ID (10 digits, no dashes)
+        date_range: Date range for metrics (default: LAST_30_DAYS)
+        manager_id: Manager ID if access type is 'managed'
+
+    Returns:
+        Device-level performance split by MOBILE, DESKTOP, TABLET, and CONNECTED_TV
+    """
+    if date_range.upper() not in VALID_DATE_RANGES:
+        raise ValueError(f"Invalid date_range '{date_range}'. Must be one of: {', '.join(VALID_DATE_RANGES)}")
+
+    query = f"""
+        SELECT
+            campaign.id,
+            campaign.name,
+            segments.device,
+            metrics.impressions,
+            metrics.clicks,
+            metrics.cost_micros,
+            metrics.conversions,
+            metrics.ctr,
+            metrics.average_cpc
+        FROM campaign
+        WHERE segments.date DURING {date_range.upper()}
+            AND campaign.status != 'REMOVED'
+        ORDER BY metrics.cost_micros DESC
+    """
+
+    if ctx:
+        ctx.info(f"Fetching device performance for {customer_id} ({date_range})...")
+
+    result = execute_gaql(customer_id, query, manager_id)
+
+    formatted = []
+    for row in result.get("results", []):
+        campaign = row.get("campaign", {})
+        segments = row.get("segments", {})
+        metrics = row.get("metrics", {})
+        formatted.append({
+            "campaign_id": campaign.get("id"),
+            "campaign_name": campaign.get("name"),
+            "device": segments.get("device"),
+            "impressions": metrics.get("impressions", 0),
+            "clicks": metrics.get("clicks", 0),
+            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions", 0)), 2),
+            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
+            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
+        })
+
+    return {
+        "device_performance": formatted,
+        "total_rows": len(formatted),
+        "date_range": date_range.upper(),
+        "customer_id": customer_id,
+    }
+
+
+@mcp.tool
+def get_conversion_actions(
+    customer_id: str,
+    manager_id: str = "",
+    ctx: Context = None
+) -> Dict[str, Any]:
+    """List all conversion actions configured on the account.
+
+    Args:
+        customer_id: The Google Ads customer ID (10 digits, no dashes)
+        manager_id: Manager ID if access type is 'managed'
+
+    Returns:
+        All conversion actions with their type, category, counting method, and default value
+    """
+    query = """
+        SELECT
+            conversion_action.id,
+            conversion_action.name,
+            conversion_action.status,
+            conversion_action.type,
+            conversion_action.category,
+            conversion_action.counting_type,
+            conversion_action.value_settings.default_value,
+            conversion_action.value_settings.always_use_default_value,
+            conversion_action.include_in_conversions_metric
+        FROM conversion_action
+        WHERE conversion_action.status != 'REMOVED'
+        ORDER BY conversion_action.name ASC
+    """
+
+    if ctx:
+        ctx.info(f"Fetching conversion actions for {customer_id}...")
+
+    result = execute_gaql(customer_id, query, manager_id)
+
+    formatted = []
+    for row in result.get("results", []):
+        ca = row.get("conversionAction", {})
+        value_settings = ca.get("valueSettings", {})
+        formatted.append({
+            "id": ca.get("id"),
+            "name": ca.get("name"),
+            "status": ca.get("status"),
+            "type": ca.get("type"),
+            "category": ca.get("category"),
+            "counting_type": ca.get("countingType"),
+            "default_value": value_settings.get("defaultValue"),
+            "always_use_default_value": value_settings.get("alwaysUseDefaultValue"),
+            "include_in_conversions_metric": ca.get("includeInConversionsMetric"),
+        })
+
+    return {
+        "conversion_actions": formatted,
+        "total_conversion_actions": len(formatted),
+        "customer_id": customer_id,
+    }
+
+
+@mcp.tool
+def get_asset_performance(
+    customer_id: str,
+    date_range: str = "LAST_30_DAYS",
+    manager_id: str = "",
+    ctx: Context = None
+) -> Dict[str, Any]:
+    """Get performance of responsive search ad assets (headlines and descriptions).
+
+    Shows which headlines and descriptions are performing best, including Google's
+    performance label (BEST, GOOD, LOW, LEARNING, PENDING).
+
+    Args:
+        customer_id: The Google Ads customer ID (10 digits, no dashes)
+        date_range: Date range for metrics (default: LAST_30_DAYS)
+        manager_id: Manager ID if access type is 'managed'
+
+    Returns:
+        Asset performance with text content, field type, performance label, impressions, clicks
+    """
+    if date_range.upper() not in VALID_DATE_RANGES:
+        raise ValueError(f"Invalid date_range '{date_range}'. Must be one of: {', '.join(VALID_DATE_RANGES)}")
+
+    query = f"""
+        SELECT
+            campaign.id,
+            campaign.name,
+            ad_group.id,
+            ad_group.name,
+            asset.id,
+            asset.name,
+            asset.text_asset.text,
+            asset.type,
+            ad_group_ad_asset_view.field_type,
+            ad_group_ad_asset_view.performance_label,
+            metrics.impressions,
+            metrics.clicks
+        FROM ad_group_ad_asset_view
+        WHERE segments.date DURING {date_range.upper()}
+            AND ad_group_ad_asset_view.field_type IN ('HEADLINE', 'DESCRIPTION')
+        ORDER BY metrics.impressions DESC
+        LIMIT 100
+    """
+
+    if ctx:
+        ctx.info(f"Fetching asset performance for {customer_id} ({date_range})...")
+
+    result = execute_gaql(customer_id, query, manager_id)
+
+    formatted = []
+    for row in result.get("results", []):
+        campaign = row.get("campaign", {})
+        ad_group = row.get("adGroup", {})
+        asset = row.get("asset", {})
+        asset_view = row.get("adGroupAdAssetView", {})
+        metrics = row.get("metrics", {})
+        formatted.append({
+            "campaign_id": campaign.get("id"),
+            "campaign_name": campaign.get("name"),
+            "ad_group_id": ad_group.get("id"),
+            "ad_group_name": ad_group.get("name"),
+            "asset_id": asset.get("id"),
+            "asset_text": asset.get("textAsset", {}).get("text"),
+            "asset_type": asset.get("type"),
+            "field_type": asset_view.get("fieldType"),
+            "performance_label": asset_view.get("performanceLabel"),
+            "impressions": metrics.get("impressions", 0),
+            "clicks": metrics.get("clicks", 0),
+        })
+
+    return {
+        "assets": formatted,
+        "total_assets": len(formatted),
+        "date_range": date_range.upper(),
+        "customer_id": customer_id,
+    }
+
 @mcp.resource("gaql://reference")
 def gaql_reference() -> str:
     """Google Ads Query Language (GAQL) reference documentation."""
