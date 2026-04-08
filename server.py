@@ -671,6 +671,157 @@ def get_keyword_performance(
         "customer_id": customer_id,
     }
 
+
+@mcp.tool
+def get_search_terms_report(
+    customer_id: str,
+    date_range: str = "LAST_30_DAYS",
+    campaign_id: str = "",
+    limit: int = 100,
+    manager_id: str = "",
+    ctx: Context = None
+) -> Dict[str, Any]:
+    """Get the search terms report — actual searches that triggered your ads.
+
+    Useful for finding new keyword opportunities and negative keyword candidates.
+
+    Args:
+        customer_id: The Google Ads customer ID (10 digits, no dashes)
+        date_range: Date range for metrics (default: LAST_30_DAYS)
+        campaign_id: Optional — filter to a specific campaign ID
+        limit: Max number of search terms to return (default: 100, max: 500)
+        manager_id: Manager ID if access type is 'managed'
+
+    Returns:
+        Search terms with impressions, clicks, cost, CTR, conversions, and match status
+    """
+    if date_range.upper() not in VALID_DATE_RANGES:
+        raise ValueError(f"Invalid date_range '{date_range}'. Must be one of: {', '.join(VALID_DATE_RANGES)}")
+
+    limit = min(max(1, limit), 500)
+    campaign_filter = f"AND campaign.id = {campaign_id}" if campaign_id else ""
+
+    query = f"""
+        SELECT
+            campaign.id,
+            campaign.name,
+            ad_group.id,
+            ad_group.name,
+            search_term_view.search_term,
+            search_term_view.status,
+            metrics.impressions,
+            metrics.clicks,
+            metrics.cost_micros,
+            metrics.conversions,
+            metrics.ctr,
+            metrics.average_cpc
+        FROM search_term_view
+        WHERE segments.date DURING {date_range.upper()}
+            {campaign_filter}
+        ORDER BY metrics.impressions DESC
+        LIMIT {limit}
+    """
+
+    if ctx:
+        ctx.info(f"Fetching search terms report for {customer_id} ({date_range})...")
+
+    result = execute_gaql(customer_id, query, manager_id)
+
+    formatted = []
+    for row in result.get("results", []):
+        campaign = row.get("campaign", {})
+        ad_group = row.get("adGroup", {})
+        stv = row.get("searchTermView", {})
+        metrics = row.get("metrics", {})
+        formatted.append({
+            "campaign_id": campaign.get("id"),
+            "campaign_name": campaign.get("name"),
+            "ad_group_id": ad_group.get("id"),
+            "ad_group_name": ad_group.get("name"),
+            "search_term": stv.get("searchTerm"),
+            "status": stv.get("status"),
+            "impressions": metrics.get("impressions", 0),
+            "clicks": metrics.get("clicks", 0),
+            "cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
+            "conversions": round(float(metrics.get("conversions", 0)), 2),
+            "ctr": round(float(metrics.get("ctr", 0)) * 100, 2),
+            "average_cpc": round(int(metrics.get("averageCpc", 0)) / 1_000_000, 2),
+        })
+
+    return {
+        "search_terms": formatted,
+        "total_search_terms": len(formatted),
+        "date_range": date_range.upper(),
+        "customer_id": customer_id,
+    }
+
+
+@mcp.tool
+def get_budget_report(
+    customer_id: str,
+    manager_id: str = "",
+    ctx: Context = None
+) -> Dict[str, Any]:
+    """Get campaign budgets and current spend for all active campaigns.
+
+    Args:
+        customer_id: The Google Ads customer ID (10 digits, no dashes)
+        manager_id: Manager ID if access type is 'managed'
+
+    Returns:
+        Campaign budget details including daily budget, spend period, and current month cost
+    """
+    query = """
+        SELECT
+            campaign.id,
+            campaign.name,
+            campaign.status,
+            campaign.advertising_channel_type,
+            campaign_budget.id,
+            campaign_budget.name,
+            campaign_budget.amount_micros,
+            campaign_budget.period,
+            campaign_budget.type,
+            campaign_budget.total_amount_micros,
+            metrics.cost_micros
+        FROM campaign
+        WHERE campaign.status != 'REMOVED'
+            AND segments.date DURING THIS_MONTH
+        ORDER BY campaign_budget.amount_micros DESC
+    """
+
+    if ctx:
+        ctx.info(f"Fetching budget report for {customer_id}...")
+
+    result = execute_gaql(customer_id, query, manager_id)
+
+    formatted = []
+    for row in result.get("results", []):
+        campaign = row.get("campaign", {})
+        budget = row.get("campaignBudget", {})
+        metrics = row.get("metrics", {})
+        amount_micros = int(budget.get("amountMicros", 0))
+        total_micros = int(budget.get("totalAmountMicros", 0)) if budget.get("totalAmountMicros") else None
+        formatted.append({
+            "campaign_id": campaign.get("id"),
+            "campaign_name": campaign.get("name"),
+            "status": campaign.get("status"),
+            "channel_type": campaign.get("advertisingChannelType"),
+            "budget_id": budget.get("id"),
+            "budget_name": budget.get("name"),
+            "daily_budget": round(amount_micros / 1_000_000, 2),
+            "budget_period": budget.get("period"),
+            "budget_type": budget.get("type"),
+            "total_budget": round(total_micros / 1_000_000, 2) if total_micros else None,
+            "month_to_date_cost": round(int(metrics.get("costMicros", 0)) / 1_000_000, 2),
+        })
+
+    return {
+        "budgets": formatted,
+        "total_campaigns": len(formatted),
+        "customer_id": customer_id,
+    }
+
 @mcp.resource("gaql://reference")
 def gaql_reference() -> str:
     """Google Ads Query Language (GAQL) reference documentation."""
