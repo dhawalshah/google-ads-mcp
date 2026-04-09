@@ -55,12 +55,9 @@ async def login(request: Request):
         include_granted_scopes="true",
     )
     request.session["oauth_state"] = state
-    # Capture code_verifier from whichever attribute the installed library uses
-    cv_flow = getattr(flow, "code_verifier", None)
-    cv_client = getattr(getattr(flow, "oauth2session", None), "_client", None)
-    cv_client = getattr(cv_client, "code_verifier", None) if cv_client else None
-    code_verifier = cv_flow or cv_client
-    logger.info(f"login: flow.code_verifier={cv_flow!r}, client.code_verifier={cv_client!r}, auth_url_has_challenge={'code_challenge' in auth_url}")
+    # google-auth-oauthlib auto-generates a PKCE code_verifier on flow.code_verifier;
+    # store it so the callback can pass it to fetch_token.
+    code_verifier = getattr(flow, "code_verifier", None)
     if code_verifier:
         request.session["code_verifier"] = code_verifier
     return RedirectResponse(auth_url)
@@ -80,7 +77,6 @@ async def callback(request: Request, code: str = None, state: str = None, error:
     # Exchange the code for a token (pass code_verifier if PKCE was used)
     flow = _make_flow(state=state)
     code_verifier = request.session.pop("code_verifier", None)
-    logger.info(f"callback: code_verifier={'set' if code_verifier else 'MISSING'}, session_keys={list(request.session.keys())}")
     flow.fetch_token(code=code, code_verifier=code_verifier)
     creds = flow.credentials
 
