@@ -55,6 +55,10 @@ async def login(request: Request):
         include_granted_scopes="true",
     )
     request.session["oauth_state"] = state
+    # Store code_verifier if the library generated PKCE (newer google-auth-oauthlib does this)
+    code_verifier = getattr(flow.oauth2session._client, "code_verifier", None)
+    if code_verifier:
+        request.session["code_verifier"] = code_verifier
     return RedirectResponse(auth_url)
 
 
@@ -69,9 +73,10 @@ async def callback(request: Request, code: str = None, state: str = None, error:
     if not state or state != saved_state:
         return HTMLResponse("<h2>Security error: invalid state.</h2><a href='/auth/login'>Try again</a>", status_code=400)
 
-    # Exchange the code for a token
+    # Exchange the code for a token (pass code_verifier if PKCE was used)
     flow = _make_flow(state=state)
-    flow.fetch_token(code=code)
+    code_verifier = request.session.pop("code_verifier", None)
+    flow.fetch_token(code=code, code_verifier=code_verifier)
     creds = flow.credentials
 
     # Get the user's email from Google
