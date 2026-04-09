@@ -135,13 +135,15 @@ Open your browser to `http://localhost:8080/auth/login` and sign in with your Go
 
 ### Option A: Local (Claude Desktop — single user)
 
-Run the server in STDIO mode for direct Claude Desktop integration:
+**1. Authenticate once** to save a local token:
 
 ```bash
-python server.py
+python setup_local_auth.py
 ```
 
-Add to your Claude Desktop config at `~/Library/Application Support/Claude/claude_desktop_config.json`:
+This opens a browser, completes the Google OAuth flow, and saves your token to `~/.config/google-ads-mcp/token.json`. You only need to do this once (tokens auto-refresh).
+
+**2. Add to your Claude Desktop config** at `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -152,10 +154,7 @@ Add to your Claude Desktop config at `~/Library/Application Support/Claude/claud
       "env": {
         "GOOGLE_ADS_DEVELOPER_TOKEN": "your_developer_token",
         "OAUTH_CONFIG_PATH": "/absolute/path/to/client_secret.json",
-        "GCP_PROJECT_ID": "your-gcp-project-id",
-        "ALLOWED_DOMAIN": "yourcompany.com",
-        "BASE_URL": "http://localhost:8080",
-        "SESSION_SECRET_KEY": "your-session-secret"
+        "MCP_USER_EMAIL": "you@yourcompany.com"
       }
     }
   }

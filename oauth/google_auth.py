@@ -1,21 +1,29 @@
 """
-Google Ads OAuth Authentication - multi-user server version.
+Google Ads OAuth Authentication.
 
-Instead of reading a local token file, this reads each user's token
-from Firestore using the currently logged-in user's email.
+Supports two modes:
+- HTTP server mode (team/Cloud Run): reads token from Firestore using the
+  session user set by auth middleware in main.py.
+- Local STDIO mode (Claude Desktop single-user): reads token from
+  ~/.config/google-ads-mcp/token.json; set MCP_USER_EMAIL in env.
 """
 
+import json
 import os
+import pathlib
 import contextvars
 import logging
 from typing import Dict
 
-from .firestore_tokens import load_token
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from google.auth.exceptions import RefreshError
 
 logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/adwords"]
 API_VERSION = "v21"
+LOCAL_TOKEN_PATH = pathlib.Path.home() / ".config" / "google-ads-mcp" / "token.json"
 
 # Set by auth middleware in main.py for every request
 current_user_email: contextvars.ContextVar[str] = contextvars.ContextVar(
@@ -31,26 +39,66 @@ def format_customer_id(customer_id: str) -> str:
     return customer_id.zfill(10)
 
 
+def _load_local_token() -> Credentials | None:
+    """Load credentials from the local token file (~/.config/google-ads-mcp/token.json)."""
+    if not LOCAL_TOKEN_PATH.exists():
+        return None
+    try:
+        creds = Credentials.from_authorized_user_info(
+            json.loads(LOCAL_TOKEN_PATH.read_text()), SCOPES
+        )
+    except Exception:
+        logger.warning("Could not read local token file")
+        return None
+
+    if creds.valid:
+        return creds
+
+    if creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            LOCAL_TOKEN_PATH.write_text(creds.to_json())
+            return creds
+        except RefreshError:
+            logger.warning("Local token refresh failed — re-run setup_local_auth.py")
+            return None
+
+    return None
+
+
 def get_headers_with_auto_token() -> Dict[str, str]:
     """
     Get API headers using the current user's stored token.
-    Raises an error if no user is logged in.
+
+    In HTTP server mode the email comes from the session ContextVar.
+    In local STDIO mode it comes from MCP_USER_EMAIL and the token
+    is read from ~/.config/google-ads-mcp/token.json.
     """
     email = current_user_email.get()
 
-    if not email:
-        raise ValueError(
-            "No authenticated user found. "
-            "Please visit /auth/login to connect your Google account."
-        )
-
-    creds = load_token(email, SCOPES)
-
-    if not creds:
-        raise ValueError(
-            f"No valid token for {email}. "
-            "Please visit /auth/login to reconnect your Google account."
-        )
+    if email:
+        # HTTP server mode — load from Firestore
+        from .firestore_tokens import load_token
+        creds = load_token(email, SCOPES)
+        if not creds:
+            raise ValueError(
+                f"No valid token for {email}. "
+                "Please visit /auth/login to reconnect your Google account."
+            )
+    else:
+        # Local STDIO mode — fall back to MCP_USER_EMAIL + local token file
+        email = os.environ.get("MCP_USER_EMAIL")
+        if not email:
+            raise ValueError(
+                "No authenticated user found. "
+                "In server mode visit /auth/login. "
+                "In local mode run setup_local_auth.py and set MCP_USER_EMAIL."
+            )
+        creds = _load_local_token()
+        if not creds:
+            raise ValueError(
+                "No valid local token. Run setup_local_auth.py to authenticate."
+            )
 
     developer_token = os.environ.get("GOOGLE_ADS_DEVELOPER_TOKEN", "")
     if not developer_token:
