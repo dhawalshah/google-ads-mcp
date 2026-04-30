@@ -107,7 +107,7 @@ cp .env.example .env       # fill in values
 
 ---
 
-## Step 3 — Mode A: Local STDIO
+## Step 4 — Mode A: Local STDIO
 
 ```bash
 python setup_local_auth.py
@@ -137,7 +137,7 @@ Restart Claude Desktop. You're done — skip the rest.
 
 ---
 
-## Step 3 — Mode B: Remote HTTP server (Claude Teams / claude.ai)
+## Step 4 — Mode B: Remote HTTP server (Claude Teams / claude.ai)
 
 ### Deploy to Cloud Run
 
