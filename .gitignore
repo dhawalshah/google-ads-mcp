@@ -14,4 +14,7 @@ lib/
 google-ads-mcp-server.dxt
 
 # macOS
-.DS_Storedocs/
+.DS_Store
+
+# Internal docs (not for public repo)
+docs/

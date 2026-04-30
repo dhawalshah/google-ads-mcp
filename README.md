@@ -2,6 +2,8 @@
 
 A Model Context Protocol (MCP) server for Google Ads. Connect Claude (or any MCP-compatible AI client) directly to your Google Ads accounts to query campaign performance, analyse keywords, inspect budgets, review search terms, and more — all in natural language.
 
+The server speaks the [MCP authorization spec (2025-06-18)](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization), so it works as a remote connector anywhere Claude supports custom MCP servers — claude.ai (personal), Claude Desktop, and Claude Teams. Add **one URL**, click "Connect", sign in with Google, done. For a Teams plan, the org owner adds the URL once and each member individually authenticates on first use.
+
 ## What you can do
 
 ### Account Management
@@ -25,6 +27,26 @@ A Model Context Protocol (MCP) server for Google Ads. Connect Claude (or any MCP
 
 ---
 
+## How auth works
+
+There are **two** modes. Pick one.
+
+### Mode A — Local STDIO (one user, no server)
+Use this if you only want it on your own machine. `setup_local_auth.py` runs the Google OAuth flow once and stores your token in `~/.config/google-ads-mcp/token.json`. Claude Desktop launches `server.py` as a subprocess. No Firestore, no Cloud Run, no public URL.
+
+### Mode B — Remote HTTP server (Claude Teams, claude.ai, multi-user)
+The MCP server is also an OAuth 2.1 authorization server. When Claude connects:
+
+1. Claude discovers our metadata at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`.
+2. Claude registers itself via Dynamic Client Registration (`POST /oauth/register`).
+3. Claude redirects the user to `/oauth/authorize`. We delegate identification to Google OAuth.
+4. After Google login, we issue our **own** opaque bearer token to Claude — Google credentials never leave the server.
+5. On each `/mcp` request Claude sends our bearer; we map it server-side to the right user's stored Google credentials and call the Google Ads APIs.
+
+The `?user=email` query string from older versions is **gone** — there are no per-user URLs to copy around.
+
+---
+
 ## Prerequisites
 
 - Python 3.10+
@@ -33,117 +55,67 @@ A Model Context Protocol (MCP) server for Google Ads. Connect Claude (or any MCP
 
 ---
 
-## Step 1: Get Google Ads API Access
+## Step 1 — Get Google Ads API access
 
-1. Sign in to [Google Ads](https://ads.google.com/)
-2. Go to **Tools & Settings** → **Setup** → **API Center**
-3. Apply for a **Developer Token**
-   - A **Test token** is available immediately and works with test accounts
-   - A **Production token** requires approval (2–5 business days) and grants access to live accounts
-4. Note your **Developer Token** — you'll need it in Step 3
+1. Sign in to [Google Ads](https://ads.google.com/).
+2. **Tools & Settings → Setup → API Center**.
+3. Apply for a **Developer Token**:
+   - A **Test token** is available immediately and works with test accounts.
+   - A **Production token** requires approval (2–5 business days) and grants access to live accounts.
+4. Note your **Developer Token** — you'll need it below.
 
 > If you use a **Manager (MCC) account**, note the 10-digit Manager Account ID too. You'll use it as `manager_id` when querying sub-accounts.
 
 ---
 
-## Step 2: Set Up Google Cloud
+## Step 2 — Set up Google Cloud
 
 ### 2a. Create a project and enable the Google Ads API
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or select an existing one) and note the **Project ID**
-3. Navigate to **APIs & Services → Library**, search for **Google Ads API**, and click **Enable**
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create or select a project and note the **Project ID**.
+3. **APIs & Services → Library**, search for **Google Ads API**, click **Enable**.
 
 ### 2b. Create OAuth 2.0 credentials
+1. **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**.
+2. Application type: **Web application**.
+3. Add **Authorized redirect URIs**:
+   - `http://localhost:8080/auth/callback` *(local dev / setup_local_auth.py)*
+   - `https://YOUR-CLOUD-RUN-URL/auth/callback` *(remote deployment — add after deploy)*
+4. Click **Create**, then **Download JSON** → save as `client_secret.json` in the project root *(gitignored)*. You can also copy the Client ID / Client Secret straight into env vars.
 
-1. Go to **APIs & Services → Credentials**
-2. Click **Create Credentials → OAuth 2.0 Client IDs**
-3. Choose **Web application**
-4. Name it (e.g. `Google Ads MCP Server`)
-5. Under **Authorized redirect URIs**, add:
-   - `http://localhost:8080/auth/callback` (for local development)
-   - `https://YOUR-CLOUD-RUN-URL/auth/callback` (for team/Cloud Run deployment — add after deploy)
-6. Click **Create**, then **Download JSON**
-7. Save the downloaded file as `client_secret.json` in your project root (this file is gitignored)
+### 2c. OAuth consent screen
+1. **APIs & Services → OAuth consent screen**.
+2. Choose **Internal** for a Google Workspace org (recommended for teams), or **External** for personal/individual use.
+3. Add the scope: `https://www.googleapis.com/auth/adwords`.
+4. If using **External** in Testing mode, add each user's email under **Test users**.
 
-### 2c. Configure the OAuth consent screen
-
-1. Go to **APIs & Services → OAuth consent screen**
-2. Choose **Internal** if everyone who will use this is in your Google Workspace org (recommended for teams), or **External** for personal use
-3. Fill in App Name (e.g. `Google Ads MCP`), support email, and developer contact
-4. Add the scope: `https://www.googleapis.com/auth/adwords`
-5. If using External and the app is in Testing mode, add each user's email under **Test users**
-
-### 2d. Enable Firestore (team/Cloud Run mode only)
-
-The server stores OAuth tokens in Firestore so each user authenticates once and the token persists across container restarts.
-
-1. In Google Cloud Console, go to **Firestore**
-2. Click **Create database**, choose **Native mode**, and select a region
-3. The default Cloud Run service account needs Firestore access — grant it the **Cloud Datastore User** role under **IAM & Admin → IAM**
+### 2d. Enable Firestore *(Mode B only)*
+The server stores OAuth bearer tokens and per-user Google credentials in Firestore.
+1. In Cloud Console, **Firestore → Create database → Native mode**, pick a region.
+2. Grant the Cloud Run service account **Cloud Datastore User** role under **IAM & Admin → IAM**.
 
 ---
 
-## Step 3: Local Setup
+## Step 3 — Install
 
 ```bash
 git clone https://github.com/dhawalshah/google-ads-mcp
 cd google-ads-mcp
 pip install -r requirements.txt
-```
-
-Copy and fill in your environment variables:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-GOOGLE_ADS_DEVELOPER_TOKEN=your_developer_token_here
-OAUTH_CONFIG_PATH=./client_secret.json
-GCP_PROJECT_ID=your-gcp-project-id
-ALLOWED_DOMAIN=yourcompany.com
-BASE_URL=http://localhost:8080
-SESSION_SECRET_KEY=change-me-to-a-long-random-string
-```
-
-Copy your OAuth credentials file (downloaded in Step 2b):
-
-```bash
-cp /path/to/downloaded-credentials.json client_secret.json
+cp .env.example .env       # fill in values
 ```
 
 ---
 
-## Step 4: Authenticate
-
-Start the server locally and complete the OAuth flow:
-
-```bash
-python main.py
-```
-
-Open your browser to `http://localhost:8080/auth/login` and sign in with your Google account. On success you'll see a confirmation page and your token is saved to Firestore.
-
-> Each team member who wants to use the MCP completes this step once from their own browser.
-
----
-
-## Usage Options
-
-### Option A: Local (Claude Desktop — single user)
-
-**1. Authenticate once** to save a local token:
+## Step 3 — Mode A: Local STDIO
 
 ```bash
 python setup_local_auth.py
 ```
 
-This opens a browser, completes the Google OAuth flow, and saves your token to `~/.config/google-ads-mcp/token.json`. You only need to do this once (tokens auto-refresh).
+A browser opens, you sign in with Google, the script writes `~/.config/google-ads-mcp/token.json`.
 
-**2. Add to your Claude Desktop config** at `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Then add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 
 ```json
 {
@@ -161,17 +133,13 @@ This opens a browser, completes the Google OAuth flow, and saves your token to `
 }
 ```
 
-Restart Claude Desktop.
+Restart Claude Desktop. You're done — skip the rest.
 
 ---
 
-### Option B: Team on Google Cloud Run
+## Step 3 — Mode B: Remote HTTP server (Claude Teams / claude.ai)
 
-One deployment, always-on, each team member authenticates once via their browser.
-
-**Prerequisites:** [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated (`gcloud auth login`).
-
-**1. Deploy to Cloud Run:**
+### Deploy to Cloud Run
 
 ```bash
 gcloud run deploy google-ads-mcp \
@@ -181,38 +149,39 @@ gcloud run deploy google-ads-mcp \
   --platform managed \
   --port 8080 \
   --allow-unauthenticated \
-  --set-env-vars "GOOGLE_ADS_DEVELOPER_TOKEN=your_dev_token,GCP_PROJECT_ID=your-project-id,ALLOWED_DOMAIN=yourcompany.com,SESSION_SECRET_KEY=your-secret-key,BASE_URL=https://YOUR-SERVICE-URL.run.app,OAUTH_CONFIG_PATH=/app/client_secret.json"
+  --set-env-vars "GOOGLE_ADS_DEVELOPER_TOKEN=your_dev_token,GCP_PROJECT_ID=your-project-id,BASE_URL=https://YOUR-SERVICE-URL.run.app,GOOGLE_CLIENT_ID=...,GOOGLE_CLIENT_SECRET=...,ALLOWED_DOMAINS=yourcompany.com"
 ```
 
-Replace `YOUR_REGION` (e.g. `asia-south1`), `YOUR_PROJECT_ID`, and `YOUR-SERVICE-URL`.
+> **Recommended:** store `GOOGLE_CLIENT_SECRET` as a [Cloud Run secret](https://cloud.google.com/run/docs/configuring/services/secrets) rather than a plain env var.
 
-> **Recommended:** Store `client_secret.json` as a [Cloud Run secret](https://cloud.google.com/run/docs/configuring/services/secrets) rather than baking it into the image. Mount it at `/app/client_secret.json`.
-
-**2. Add the Cloud Run callback URL to your OAuth credentials:**
-
-Go back to Google Cloud Console → **APIs & Services → Credentials → your OAuth client** and add:
+After it's up, go back to **APIs & Services → Credentials → your OAuth client** and add the live callback URL:
 
 ```
 https://YOUR-SERVICE-URL.run.app/auth/callback
 ```
 
-**3. Each team member authenticates once:**
+### Connect from Claude
 
-```
-https://YOUR-SERVICE-URL.run.app/auth/login
-```
+**Claude Teams (org owner adds it once for everyone):**
+- Settings → Connectors → Add custom connector
+- URL: `https://YOUR-SERVICE-URL.run.app/mcp`
+- Each member clicks **Connect**, signs in with Google, done.
 
-**4. Connect via Claude Desktop:**
+**claude.ai personal:**
+- Settings → Connectors → Add custom connector
+- URL: `https://YOUR-SERVICE-URL.run.app/mcp`
 
+**Claude Desktop with a remote server:**
 ```json
 {
   "mcpServers": {
     "google-ads": {
-      "url": "https://YOUR-SERVICE-URL.run.app/mcp?user=you@yourcompany.com"
+      "url": "https://YOUR-SERVICE-URL.run.app/mcp"
     }
   }
 }
 ```
+Claude Desktop will run the OAuth dance the first time you use it.
 
 ---
 
@@ -220,13 +189,19 @@ https://YOUR-SERVICE-URL.run.app/auth/login
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `GOOGLE_ADS_DEVELOPER_TOKEN` | Yes | Developer token from Google Ads API Center |
-| `OAUTH_CONFIG_PATH` | Yes | Path to `client_secret.json` |
-| `GCP_PROJECT_ID` | Yes (team mode) | GCP project ID for Firestore token storage |
-| `ALLOWED_DOMAIN` | Yes | Only `@ALLOWED_DOMAIN` emails can authenticate (e.g. `yourcompany.com`) |
-| `BASE_URL` | Yes | Public URL of this service (e.g. `https://your-service.run.app`) |
-| `SESSION_SECRET_KEY` | Yes | Secret for signing session cookies — use a long random string |
-| `PORT` | No | HTTP port (default: `8080`) |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Yes | Developer token from Google Ads → Tools & Settings → API Center. |
+| `BASE_URL` | Mode B | Public URL of this service. Used for OAuth metadata and as the canonical resource URI tokens are bound to. |
+| `GCP_PROJECT_ID` | Mode B | GCP project hosting Firestore. |
+| `GOOGLE_CLIENT_ID` | Mode B† | Google OAuth client ID. |
+| `GOOGLE_CLIENT_SECRET` | Mode B† | Google OAuth client secret. |
+| `OAUTH_CONFIG_PATH` | Mode B† | Alternative to the two above: path to `client_secret.json`. |
+| `GOOGLE_REDIRECT_URI` | No | Override the Google callback URL. Defaults to `${BASE_URL}/auth/callback`. |
+| `ALLOWED_DOMAINS` | No | Comma-separated email domain allowlist (e.g. `acme.com,beta.com`). Empty = no restriction. |
+| `MCP_USER_EMAIL` | Mode A | Your email — set in Claude Desktop config. |
+| `PORT` | No | HTTP port (default `8080`). |
+| `LOG_LEVEL` | No | Python log level (default `INFO`). |
+
+† Set **either** `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` **or** `OAUTH_CONFIG_PATH`.
 
 ---
 
@@ -272,11 +247,30 @@ Which ad headlines are performing best?
 
 ---
 
+## OAuth endpoint reference (Mode B)
+
+For developers who want to verify the implementation or write their own MCP client.
+
+| Endpoint | Spec | Purpose |
+| --- | --- | --- |
+| `GET /.well-known/oauth-protected-resource` | RFC 9728 | Advertises the canonical resource URI and authorization server. |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414 | Authorization server metadata. |
+| `POST /oauth/register` | RFC 7591 | Dynamic Client Registration. |
+| `GET /oauth/authorize` | OAuth 2.1 | Starts the auth code flow with PKCE; redirects to Google. |
+| `GET /auth/callback` | — | Google redirects here; we mint our authorization code and bounce back to the MCP client. |
+| `POST /oauth/token` | OAuth 2.1 | Authorization code + refresh token grants. |
+
+A `GET /mcp` without a valid bearer returns `401` with a `WWW-Authenticate: Bearer resource_metadata="…"` header pointing at the protected-resource metadata document, which is how a standards-compliant MCP client discovers the rest.
+
+---
+
 ## Attribution
 
 Forked from [gomarble-ai/google-ads-mcp-server](https://github.com/gomarble-ai/google-ads-mcp-server), with additions:
-- Multi-user HTTP server mode (FastAPI + session middleware)
+- Multi-user HTTP server mode acting as an OAuth 2.1 authorization server (DCR + PKCE + RFC 8707 resource indicators)
 - Per-user OAuth token storage in Firestore
+- Local STDIO mode with token stored in `~/.config/google-ads-mcp/token.json`
+- `setup_local_auth.py` — one-shot local auth script
 - Google Cloud Run deployment support
 - Expanded read-only toolset (10 additional tools)
 

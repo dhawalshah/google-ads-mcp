@@ -13,7 +13,7 @@ from google.auth.exceptions import RefreshError
 
 logger = logging.getLogger(__name__)
 
-COLLECTION = "user_tokens_ga"  # separate collection per MCP
+COLLECTION = "user_tokens_ads"  # separate collection per MCP
 
 
 def _db():

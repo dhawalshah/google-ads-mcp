@@ -1,0 +1,15 @@
+# Cloud Run build ignore — extends .gitignore but keeps client_secret.json
+.gcloudignore
+.git
+.gitignore
+__pycache__/
+*.pyc
+.venv/
+lib/
+.DS_Store
+*.json.bak
+docs/
+tests/
+
+# Secret is mounted from Secret Manager at runtime — never bake into image
+client_secret.json
