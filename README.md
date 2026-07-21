@@ -47,6 +47,26 @@ The `?user=email` query string from older versions is **gone** — there are no 
 
 ---
 
+## Google Ads API version
+
+This server targets **Google Ads API v24**. It was upgraded from v21, which Google
+sunset on **5 August 2026** — v21 stopped accepting requests on that date, so any
+older checkout of this repo will fail against the live API and must be updated.
+
+Two user-visible changes came with the upgrade:
+
+- **Asset performance labels are gone.** `get_asset_performance` no longer returns
+  Google's BEST/GOOD/LOW label, because the Ads API removed
+  `ad_group_ad_asset_view.performance_label` in v23. The tool still reports each
+  headline and description with its impressions and clicks.
+- Everything else is unchanged. All other tools return the same fields as before.
+
+Google now ships four major API versions a year, each supported for roughly twelve
+months, so expect this to need revisiting around **May 2027**. The version is a
+single constant — `API_VERSION` in `oauth/google_auth.py`.
+
+---
+
 ## Prerequisites
 
 - Python 3.10+
@@ -221,7 +241,7 @@ Claude Desktop will run the OAuth dance the first time you use it.
 | `get_geographic_performance` | Performance breakdown by country and location type |
 | `get_device_performance` | Performance split by device: mobile, desktop, tablet |
 | `get_conversion_actions` | List all conversion actions configured on the account |
-| `get_asset_performance` | Responsive search ad headline/description performance labels |
+| `get_asset_performance` | Responsive search ad headline/description impressions and clicks |
 
 ---
 

@@ -22,7 +22,7 @@ from google.auth.exceptions import RefreshError
 logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/adwords"]
-API_VERSION = "v21"
+API_VERSION = "v24"
 LOCAL_TOKEN_PATH = pathlib.Path.home() / ".config" / "google-ads-mcp" / "token.json"
 
 # Set by auth middleware in main.py for every request

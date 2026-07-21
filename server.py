@@ -1024,8 +1024,9 @@ def get_asset_performance(
 ) -> Dict[str, Any]:
     """Get performance of responsive search ad assets (headlines and descriptions).
 
-    Shows which headlines and descriptions are performing best, including Google's
-    performance label (BEST, GOOD, LOW, LEARNING, UNRATED).
+    Shows which headlines and descriptions are performing best, ranked by
+    impressions. Google's performance label (BEST/GOOD/LOW) is no longer
+    available — the Ads API removed it in v23.
 
     Args:
         customer_id: The Google Ads customer ID (10 digits, no dashes)
@@ -1033,7 +1034,7 @@ def get_asset_performance(
         manager_id: Manager ID if access type is 'managed'
 
     Returns:
-        Asset performance with text content, field type, performance label, impressions, clicks
+        Asset performance with text content, field type, impressions, clicks
     """
     if date_range.upper() not in VALID_DATE_RANGES:
         raise ValueError(f"Invalid date_range '{date_range}'. Must be one of: {', '.join(VALID_DATE_RANGES)}")
@@ -1049,7 +1050,6 @@ def get_asset_performance(
             asset.text_asset.text,
             asset.type,
             ad_group_ad_asset_view.field_type,
-            ad_group_ad_asset_view.performance_label,
             metrics.impressions,
             metrics.clicks
         FROM ad_group_ad_asset_view
@@ -1080,7 +1080,6 @@ def get_asset_performance(
             "asset_text": asset.get("textAsset", {}).get("text"),
             "asset_type": asset.get("type"),
             "field_type": asset_view.get("fieldType"),
-            "performance_label": asset_view.get("performanceLabel"),
             "impressions": metrics.get("impressions", 0),
             "clicks": metrics.get("clicks", 0),
         })
