@@ -1,5 +1,23 @@
 # Google Ads MCP
 
+> ## 🔔 UPDATE — September 2026: no developer token needed
+>
+> Google is **sunsetting Google Ads API developer tokens**. API access levels now
+> attach to the **Google Cloud project** that owns your OAuth client instead of to
+> a token. This server has been updated to match: it no longer requires or sends a
+> developer token.
+>
+> - **Already connected to a hosted server?** Nothing to do. Your Google sign-in is
+>   unchanged and your connection keeps working.
+> - **Setting this up fresh?** Skip the API Center token application entirely — just
+>   make sure your OAuth client lives in the Cloud project that holds your Google Ads
+>   API access level. See [Step 1](#step-1--get-google-ads-api-access).
+> - **Running an older copy of this repo?** It still works. Developer tokens remain
+>   optional until Google stops accepting them, expected **H1 2027**. If
+>   `GOOGLE_ADS_DEVELOPER_TOKEN` is set, it is still sent as the `Developer-Token` header.
+>
+> Google's announcement: [Ads API access levels are moving to Google Cloud projects](https://developers.google.com/google-ads/api/docs/access-levels).
+
 A Model Context Protocol (MCP) server for Google Ads. Connect Claude (or any MCP-compatible AI client) directly to your Google Ads accounts to query campaign performance, analyse keywords, inspect budgets, review search terms, and more — all in natural language.
 
 The server speaks the [MCP authorization spec (2025-06-18)](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization), so it works as a remote connector anywhere Claude supports custom MCP servers — claude.ai (personal), Claude Desktop, and Claude Teams. Add **one URL**, click "Connect", sign in with Google, done. For a Teams plan, the org owner adds the URL once and each member individually authenticates on first use.
@@ -77,14 +95,22 @@ single constant — `API_VERSION` in `oauth/google_auth.py`.
 
 ## Step 1 — Get Google Ads API access
 
+Google has **sunset developer tokens**. API access levels now attach to the
+**Google Cloud project** that owns your OAuth client, so there is no token to
+apply for or paste anywhere.
+
 1. Sign in to [Google Ads](https://ads.google.com/).
-2. **Tools & Settings → Setup → API Center**.
-3. Apply for a **Developer Token**:
-   - A **Test token** is available immediately and works with test accounts.
-   - A **Production token** requires approval (2–5 business days) and grants access to live accounts.
-4. Note your **Developer Token** — you'll need it below.
+2. Open your Cloud project's **Google Ads API Overview** page in the
+   [Google Cloud Console](https://console.cloud.google.com/) to view or request
+   your access level (Test → Basic → Standard).
+3. Make sure the OAuth client you configure in Step 2 lives in **that same Cloud
+   project** — that is what the access level is tied to.
 
 > If you use a **Manager (MCC) account**, note the 10-digit Manager Account ID too. You'll use it as `manager_id` when querying sub-accounts.
+
+> **Legacy setups:** if you still have a developer token and want to keep sending
+> it, set `GOOGLE_ADS_DEVELOPER_TOKEN` and it will be added as the
+> `Developer-Token` header. Google expects to stop accepting it in H1 2027.
 
 ---
 
@@ -144,7 +170,6 @@ Then add to `~/Library/Application Support/Claude/claude_desktop_config.json` (m
       "command": "python",
       "args": ["/absolute/path/to/google-ads-mcp/server.py"],
       "env": {
-        "GOOGLE_ADS_DEVELOPER_TOKEN": "your_developer_token",
         "OAUTH_CONFIG_PATH": "/absolute/path/to/client_secret.json",
         "MCP_USER_EMAIL": "you@yourcompany.com"
       }
@@ -169,7 +194,7 @@ gcloud run deploy google-ads-mcp \
   --platform managed \
   --port 8080 \
   --allow-unauthenticated \
-  --set-env-vars "GOOGLE_ADS_DEVELOPER_TOKEN=your_dev_token,GCP_PROJECT_ID=your-project-id,BASE_URL=https://YOUR-SERVICE-URL.run.app,GOOGLE_CLIENT_ID=...,GOOGLE_CLIENT_SECRET=...,ALLOWED_DOMAINS=yourcompany.com"
+  --set-env-vars "GCP_PROJECT_ID=your-project-id,BASE_URL=https://YOUR-SERVICE-URL.run.app,GOOGLE_CLIENT_ID=...,GOOGLE_CLIENT_SECRET=...,ALLOWED_DOMAINS=yourcompany.com"
 ```
 
 > **Recommended:** store `GOOGLE_CLIENT_SECRET` as a [Cloud Run secret](https://cloud.google.com/run/docs/configuring/services/secrets) rather than a plain env var.
@@ -209,7 +234,7 @@ Claude Desktop will run the OAuth dance the first time you use it.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `GOOGLE_ADS_DEVELOPER_TOKEN` | Yes | Developer token from Google Ads → Tools & Settings → API Center. |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | No | **Deprecated.** Leave unset — access level now comes from the Cloud project owning the OAuth client. If set, it is sent as the `Developer-Token` header (legacy setups only). |
 | `BASE_URL` | Mode B | Public URL of this service. Used for OAuth metadata and as the canonical resource URI tokens are bound to. |
 | `GCP_PROJECT_ID` | Mode B | GCP project hosting Firestore. |
 | `GOOGLE_CLIENT_ID` | Mode B† | Google OAuth client ID. |

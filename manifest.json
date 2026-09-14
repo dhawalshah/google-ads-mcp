@@ -19,7 +19,6 @@
         "${__dirname}/server.py"
       ],
       "env": {
-        "GOOGLE_ADS_DEVELOPER_TOKEN": "${user_config.google_ads_developer_token}",
         "OAUTH_CONFIG_PATH": "${user_config.oauth_config_path}",
         "GCP_PROJECT_ID": "${user_config.gcp_project_id}",
         "PYTHONPATH": "${__dirname}/lib"
@@ -54,13 +53,6 @@
   ],
   "license": "MIT",
   "user_config": {
-    "google_ads_developer_token": {
-      "type": "string",
-      "title": "Google Ads Developer Token",
-      "description": "Your Google Ads API Developer Token (obtain from Google Ads Console → Tools & Settings → API Center)",
-      "required": true,
-      "sensitive": true
-    },
     "oauth_config_path": {
       "type": "string",
       "title": "OAuth Config Path",

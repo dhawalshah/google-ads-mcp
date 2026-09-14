@@ -100,15 +100,19 @@ def get_headers_with_auto_token() -> Dict[str, str]:
                 "No valid local token. Run setup_local_auth.py to authenticate."
             )
 
-    developer_token = os.environ.get("GOOGLE_ADS_DEVELOPER_TOKEN", "")
-    if not developer_token:
-        raise ValueError("GOOGLE_ADS_DEVELOPER_TOKEN environment variable not set")
-
-    return {
+    headers = {
         "Authorization": f"Bearer {creds.token}",
-        "Developer-Token": developer_token.strip('"').strip("'"),
         "Content-Type": "application/json",
     }
+
+    # Developer tokens are being sunset: API access levels now live on the Google
+    # Cloud project that owns the OAuth client. The header is optional today and
+    # will be rejected outright from ~H1 2027, so only send it if one is set.
+    developer_token = os.environ.get("GOOGLE_ADS_DEVELOPER_TOKEN", "").strip('"').strip("'")
+    if developer_token:
+        headers["Developer-Token"] = developer_token
+
+    return headers
 
 
 def execute_gaql(customer_id: str, query: str, manager_id: str = "") -> Dict:

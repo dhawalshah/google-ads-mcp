@@ -13,7 +13,6 @@ After authenticating, add MCP_USER_EMAIL to your Claude Desktop config:
         "args": ["/path/to/google-ads-mcp/server.py"],
         "env": {
           "OAUTH_CONFIG_PATH": "/path/to/client_secret.json",
-          "GOOGLE_ADS_DEVELOPER_TOKEN": "your_developer_token",
           "MCP_USER_EMAIL": "you@yourcompany.com"
         }
       }
@@ -113,7 +112,6 @@ def main():
                 "args": [str(pathlib.Path(__file__).parent / "server.py")],
                 "env": {
                     "OAUTH_CONFIG_PATH": CLIENT_CONFIG_PATH,
-                    "GOOGLE_ADS_DEVELOPER_TOKEN": os.environ.get("GOOGLE_ADS_DEVELOPER_TOKEN", "your_developer_token"),
                     "MCP_USER_EMAIL": "you@yourcompany.com",
                 }
             }

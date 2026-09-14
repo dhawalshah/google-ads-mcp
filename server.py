@@ -11,9 +11,6 @@ load_dotenv()
 # Import OAuth modules after environment is loaded
 from oauth.google_auth import format_customer_id, get_headers_with_auto_token, execute_gaql, API_VERSION
 
-# Get environment variables
-GOOGLE_ADS_DEVELOPER_TOKEN = os.environ.get("GOOGLE_ADS_DEVELOPER_TOKEN")
-
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('google_ads_server')
@@ -86,9 +83,6 @@ def run_gaql(
         ctx.info(f"Executing GAQL query for customer {customer_id}...")
         ctx.info(f"Query: {query}")
 
-    if not GOOGLE_ADS_DEVELOPER_TOKEN:
-        raise ValueError("Google Ads Developer Token is not set in environment variables.")
-
     try:
         # This will automatically trigger OAuth flow if needed
         result = execute_gaql(customer_id, query, manager_id)
@@ -105,9 +99,6 @@ def list_accounts(ctx: Context = None) -> Dict[str, Any]:
     """List all accessible accounts including nested sub-accounts."""
     if ctx:
         ctx.info("Checking credentials and preparing to list accounts...")
-
-    if not GOOGLE_ADS_DEVELOPER_TOKEN:
-        raise ValueError("Google Ads Developer Token is not set in environment variables.")
 
     try:
         # This will automatically trigger OAuth flow if needed
@@ -217,9 +208,6 @@ def run_keyword_planner(
         if page_url:
             ctx.info(f"Page URL: {page_url}")
 
-    if not GOOGLE_ADS_DEVELOPER_TOKEN:
-        raise ValueError("Google Ads Developer Token is not set in environment variables.")
-    
     # Validate that at least one of keywords or page_url is provided
     if (not keywords or len(keywords) == 0) and not page_url:
         raise ValueError("At least one of keywords or page URL is required, but neither was specified.")
